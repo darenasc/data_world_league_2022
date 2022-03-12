@@ -6,11 +6,12 @@ output: html_notebook
 
 # Set up 
 
-```{r}
+```{r libraries}
 library(tidyverse)
+library(solitude)
 ```
 
-```{r}
+```{r read data}
 pop <- read_csv(here::here('data', 'austin_pop.csv'))
 
 waste <- read.csv(here::here('data', 'Waste_Collection___Diversion_Report__daily_.csv'), sep = ';') %>%
@@ -27,7 +28,7 @@ Here are are a few observation on the data:
 * `Load.Time` is described as a weight in pounds in the data dictionary, that's probably a mistake as it's a `datetime`
 * `Load.Weight` is described as a weight in tons but 11764 tons per load sounds like a lot? It's most likely to be in pounds.
 
-```{r}
+```{r summary}
 waste %>% summary()
 ```
 
@@ -69,7 +70,7 @@ View(waste %>% filter(Load.ID %in% c(103691, 726111)))
 
 Recommendation for duplicated rows: it's only 41 rows out of 740k - I'd randomly pick the first row of each duplicated group of rows.
 
-```{r}
+```{r create a uniquely identify dataset}
 clean_waste <- unique_waste %>%
   group_by(Load.ID) %>%
   summarise_all(first) %>%
@@ -93,47 +94,161 @@ clean_waste %>%
 * for other categories, I'd simply remove rows with missing load weight.
 
 
-```{r}
+```{r dealing with missing values}
 clean_waste <- clean_waste %>% filter(!is.na(Load.Weight),
                                       !Load.Type %in% c('SWEEPING', 'YARD TRIMMING - X-MAS TREES'))
 ```
 
+## Other data errors and checks
 
-## Incoherent values analysis
+Let's plot the data to have a better idea of the issues we need to address in the cleaning.
+
+```{r grouping per week}
+grouped_waste <- clean_waste %>%
+  mutate(week = lubridate::floor_date(lubridate::as_date(Load.Time), unit = 'week')) %>%
+  group_by(week, Load.Type) %>%
+  summarise(med_weight = median(Load.Weight, na.rm = T),
+            load_nb = n_distinct(Load.ID),
+            trucks_nb = n_distinct(Route.Number)) %>%
+  ungroup() 
+
+```
+
+```{r}
+
+plot_ts_by_type <- function(grouped_df, start_year=2000, end_year=2021, categories_list = clean_waste$Load.Type){
+  grouped_df %>% 
+  filter(lubridate::year(week) >= start_year,
+         lubridate::year(week) <= end_year,
+         Load.Type %in% categories_list) %>%
+  ggplot(aes(x = week, y = med_weight)) +
+  geom_point() +
+  theme(axis.text.x = element_text(angle=45)) +
+  facet_wrap(Load.Type ~ .) +
+  labs(title = 'Median waste weight per week',
+       subtitle = 'broken down by load type',
+       x = NULL,
+       y = NULL)
+}
+
+plot_ts_by_type(grouped_waste)
+
+```
+
+Here are some issues that need to be addressed with the data:
+
+1) `Load.Type` categories don't seem mutually exclusive.
+
+This could be because over time, recycling streams got split into different categories or some categories changed in the way the data is collected. We can manually pick the load types we want to include in the analysis. In this case, I recommend keeping: Brush, Bulk, Dead animal, Garbage collections, Litter, Mixed Litter, Recycled Metal, Recycling - single stream, Tires and Yard Trimming.
+
+2) The time series is incomplete for some load types. We need to decide on a cut off date. I recommend 2005
+
+3) There are some extreme values in the load weight that need to be removed from the analysis. I recommend using an outlier detection technique de decide on what observations are likely to be data errors, or outliers not containing information about the time series.
+
+We will apply the outlier detection below. Here is the plot of the data, taking into account the recommendations above.
+
+```{r}
+load_type_list <- c('RECYCLING - SINGLE STREAM', 'BULK', 'YARD TRIMMING', 'BRUSH', 'GARBAGE COLLECTIONS', 'TIRES', 'LITTER', 'MIXED LITTER', 'DEAD ANIMAL', 'RECYCLED METAL')
+  
+plot_ts_by_type(grouped_waste, start_year = 2005, end_year = 2021, categories_list = load_type_list)
+```
+Outliers are flattening the plot. We need to remove them from the analysis.
+
+```{r applying rules to keep only relevant Types and Dates}
+clean_waste <- clean_waste %>%
+  filter(Load.Type %in% load_type_list,
+         lubridate::year(Load.Time) >= 2005,
+         lubridate::year(Load.Time) <= 2021)
+```
+
+```{r observing incoherent data points}
+clean_waste %>% 
+  count(Load.Type, Route.Type) %>% 
+  mutate(coherent = str_detect(Load.Type, Route.Type)) %>% # the route type includes the load type 
+  # group_by(coherent) %>%
+  # summarise(total = sum(n)) %>%
+  View()
+```
+
+One last issue is that some route types are not matching the load type they are collecting. 
+
+It seems to be quite frequent, although not very common. Could it be that indeed a route that's supposed to collect metal collected some yard trimmings? Or is it a manual data error? This could be dealt with by an outlier detection algorithm that would get rid of observations that are likely to be data errors.
+
+
+## Outliers removal
 
 There is one load weight value that is negative in a recycling collection.
 
 ```{r}
-waste %>% 
+clean_waste %>% 
   filter(Load.Type == 'GARBAGE COLLECTIONS', # checking the most common type
          Load.Weight > 0, 
-         Load.Weight < 165200) %>% # 10x the 0.75 quantile
+         Load.Weight < 50000) %>% # 25 tons
   ggplot(aes(Load.Weight)) +
-  geom_histogram() 
+  geom_histogram()
 ```
 
 There are a few values that are close to 0 or exactly 0 - they might not be a problem
 
 ```{r}
-waste %>% 
+clean_waste %>% 
   filter(Load.Weight <= 1)  %>%
   arrange(-Load.Weight)
 ```
-Some values are extremely large. We should probably use an outlier detection method to remove them from the analysis.
 
 ```{r}
-waste %>% 
-  filter(Load.Weight > (117640))  %>%
-  arrange(-Load.Weight)
+detect_outliers <- function(load_type){
+  
+  df <- clean_waste %>%
+    filter(Load.Type == load_type) %>% 
+    select(Load.ID, Load.Weight)
+  
+  iforest <- isolationForest$new()
+  
+  iforest$fit(df)
+  
+  #predict outliers within dataset
+  df$pred <- iforest$predict(df)
+  
+  threshold <- df$pred$anomaly_score %>% quantile(0.95)
+  
+  df$outlier <- as.factor(ifelse(df$pred$anomaly_score >= threshold, "outlier", "normal"))
+  
+  df %>%
+    select(Load.ID, Load.Weight, outlier)
+}
 ```
-2 dates are in the future and sometimes the report date is years after the load.time - that seems strange?
 
 ```{r}
-future <- waste %>%
+outliers_predictions <- map_dfr(load_type_list, detect_outliers)
+```
+
+```{r}
+grouped_waste_no_outlier <- clean_waste %>%
+  left_join(outliers_predictions, by = c('Load.ID', 'Load.Weight')) %>%
+  filter(outlier != 'outlier') %>%
+  mutate(week = lubridate::floor_date(lubridate::as_date(Load.Time), unit = 'week')) %>%
+  group_by(week, Load.Type) %>%
+  summarise(av_weight = mean(Load.Weight, na.rm = T),
+            med_weight = median(Load.Weight, na.rm = T),
+            load_nb = n_distinct(Load.ID),
+            trucks_nb = n_distinct(Route.Number)) %>%
+  ungroup() 
+
+grouped_waste_no_outlier %>%
+  ggplot(aes(week, av_weight)) +
+  geom_point() +
+  facet_wrap(Load.Type ~.)
+```
+
+2 dates are in the future (to be removed) and sometimes the report date is years after the load.time - that seems strange? Maybe we just ignore `report_date`
+
+```{r}
+future <- clean_waste %>%
   filter(Load.Time > Sys.time() |
            report_date > Sys.Date())
 
-time_discrep <- waste %>%
+time_discrep <- clean_waste %>%
   mutate(time_diff = lubridate::interval(lubridate::as_date(Load.Time), report_date)/ lubridate::days(1)) %>%
   filter(time_diff != 0) 
 
@@ -141,42 +256,20 @@ time_discrep %>%
   ggplot(aes(time_diff)) +
   geom_density()
 ```
+```{r remove loads in the future}
+clean_waste <- clean_waste %>%
+  filter(!Load.ID %in% future$Load.ID)
+```
+
 # Plot the data
 
 ```{r}
-
-waste %>%
-  filter(Load.Type == 'GARBAGE COLLECTIONS', # keep most common type
-         Route.Type == 'GARBAGE COLLECTION',
-         lubridate::year(Load.Time) >= 2021,
-         Load.Weight >= 0,
-         Load.Weight <= 60000) %>% 
-  # arbitrary based on the plot
-  ggplot(aes(x = lubridate::as_date(Load.Time), y = Load.Weight)) +
-  geom_point()
+clean_waste %>% 
+  filter(Load.Type %in% load_type_list) %>%
+  group_by(Route.Number, Load.Type) %>% 
+  summarise(n_routes = n(), 
+            total_weight = sum(Load.Weight)) %>% 
+  ggplot(aes(n_routes, total_weight, colour=Load.Type)) + geom_point() +facet_wrap(Load.Type ~.)
 ```
 
-```{r}
-grouped_waste <- waste %>%
-  mutate(week = lubridate::floor_date(lubridate::as_date(Load.Time), unit = 'week')) %>%
-  group_by(week, Load.Type, Route.Type, Dropoff.Site) %>%
-  summarise(med_weight = median(Load.Weight, na.rm = T),
-            load_nb = n(),
-            trucks_nb = n_distinct(Route.Number)) %>%
-  ungroup() 
-
-```
-
-```{r}
-rare_type <- grouped_waste %>% count(Load.Type) %>% filter(n < 1000)
-
-grouped_waste %>% 
-  filter(lubridate::year(week) >= 2019,
-         lubridate::year(week) <= 2021,
-         !Load.Type %in% rare_type$Load.Type) %>%
-  ggplot(aes(x = week, y = med_weight)) +
-  geom_point() +
-  facet_wrap(Load.Type ~ .)
-  
-```
 
