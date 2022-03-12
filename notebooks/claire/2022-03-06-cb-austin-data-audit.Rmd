@@ -1,0 +1,182 @@
+---
+title: "R Notebook"
+output: html_notebook
+---
+# Overview
+
+# Set up 
+
+```{r}
+library(tidyverse)
+```
+
+```{r}
+pop <- read_csv(here::here('data', 'austin_pop.csv'))
+
+waste <- read.csv(here::here('data', 'Waste_Collection___Diversion_Report__daily_.csv'), sep = ';') %>%
+  mutate(report_date = lubridate::mdy(ï..Report.Date),
+         Load.Time = lubridate::mdy_hms(Load.Time),
+         Load.Weight = as.numeric(str_remove_all(Load.Weight, ','))) %>%
+  select(-ï..Report.Date)
+```
+
+# Dataset exploration
+
+Here are are a few observation on the data:
+
+* `Load.Time` is described as a weight in pounds in the data dictionary, that's probably a mistake as it's a `datetime`
+* `Load.Weight` is described as a weight in tons but 11764 tons per load sounds like a lot? It's most likely to be in pounds.
+
+```{r}
+waste %>% summary()
+```
+
+## Let's look for the primary key in the ds
+
+The data dictionary says that every row is a load but there are more rows than load ids.
+```{r}
+length(unique(waste$Load.ID))
+```
+```{r}
+unique_waste <- waste %>% unique()
+```
+
+There were 3 duplicated rows, there are more rows with duplicated IDs.
+
+```{r}
+dup_id <- unique_waste %>% count(Load.ID) %>% filter(n > 1) %>% arrange(-n)
+```
+
+It seems that most rows with duplicated `Load.ID` are the same for every other column except for `Route.Number`
+
+```{r}
+unique_waste %>% 
+  filter(Load.ID %in% dup_id$Load.ID) %>%
+  group_by(Load.ID) %>%
+  summarise(n_rows = n(),
+            n_routes = n_distinct(Route.Number),
+            n_load_weight = n_distinct(Load.Weight)) %>%
+  arrange(n_routes) %>%
+  View()
+
+```
+
+It seems that for these 2 the report date is different but I think it's the same instance.
+
+```{r}
+View(waste %>% filter(Load.ID %in% c(103691, 726111)))
+```
+
+Recommendation for duplicated rows: it's only 41 rows out of 740k - I'd randomly pick the first row of each duplicated group of rows.
+
+```{r}
+clean_waste <- unique_waste %>%
+  group_by(Load.ID) %>%
+  summarise_all(first) %>%
+  ungroup()
+```
+
+## Missing values
+
+72335 observations are missing in the `Load.Weight`
+
+Let's see how they are distributed
+```{r}
+clean_waste %>% 
+  group_by(Load.Type) %>% 
+  summarise(prop_missing = sum(is.na(Load.Weight)) / n()) %>% 
+  arrange(-prop_missing)
+```
+
+* 81% of the `SWEEPING` observations are missing, I suggest we remove it from the analysis.
+* 5% of `YARD TRIMMING - X-MAS TREES` is missing, it's only 17 rows so I'd also remove it from the analysis.
+* for other categories, I'd simply remove rows with missing load weight.
+
+
+```{r}
+clean_waste <- clean_waste %>% filter(!is.na(Load.Weight),
+                                      !Load.Type %in% c('SWEEPING', 'YARD TRIMMING - X-MAS TREES'))
+```
+
+
+## Incoherent values analysis
+
+There is one load weight value that is negative in a recycling collection.
+
+```{r}
+waste %>% 
+  filter(Load.Type == 'GARBAGE COLLECTIONS', # checking the most common type
+         Load.Weight > 0, 
+         Load.Weight < 165200) %>% # 10x the 0.75 quantile
+  ggplot(aes(Load.Weight)) +
+  geom_histogram() 
+```
+
+There are a few values that are close to 0 or exactly 0 - they might not be a problem
+
+```{r}
+waste %>% 
+  filter(Load.Weight <= 1)  %>%
+  arrange(-Load.Weight)
+```
+Some values are extremely large. We should probably use an outlier detection method to remove them from the analysis.
+
+```{r}
+waste %>% 
+  filter(Load.Weight > (117640))  %>%
+  arrange(-Load.Weight)
+```
+2 dates are in the future and sometimes the report date is years after the load.time - that seems strange?
+
+```{r}
+future <- waste %>%
+  filter(Load.Time > Sys.time() |
+           report_date > Sys.Date())
+
+time_discrep <- waste %>%
+  mutate(time_diff = lubridate::interval(lubridate::as_date(Load.Time), report_date)/ lubridate::days(1)) %>%
+  filter(time_diff != 0) 
+
+time_discrep %>% 
+  ggplot(aes(time_diff)) +
+  geom_density()
+```
+# Plot the data
+
+```{r}
+
+waste %>%
+  filter(Load.Type == 'GARBAGE COLLECTIONS', # keep most common type
+         Route.Type == 'GARBAGE COLLECTION',
+         lubridate::year(Load.Time) >= 2021,
+         Load.Weight >= 0,
+         Load.Weight <= 60000) %>% 
+  # arbitrary based on the plot
+  ggplot(aes(x = lubridate::as_date(Load.Time), y = Load.Weight)) +
+  geom_point()
+```
+
+```{r}
+grouped_waste <- waste %>%
+  mutate(week = lubridate::floor_date(lubridate::as_date(Load.Time), unit = 'week')) %>%
+  group_by(week, Load.Type, Route.Type, Dropoff.Site) %>%
+  summarise(med_weight = median(Load.Weight, na.rm = T),
+            load_nb = n(),
+            trucks_nb = n_distinct(Route.Number)) %>%
+  ungroup() 
+
+```
+
+```{r}
+rare_type <- grouped_waste %>% count(Load.Type) %>% filter(n < 1000)
+
+grouped_waste %>% 
+  filter(lubridate::year(week) >= 2019,
+         lubridate::year(week) <= 2021,
+         !Load.Type %in% rare_type$Load.Type) %>%
+  ggplot(aes(x = week, y = med_weight)) +
+  geom_point() +
+  facet_wrap(Load.Type ~ .)
+  
+```
+
