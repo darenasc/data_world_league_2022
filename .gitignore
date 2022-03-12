@@ -131,3 +131,4 @@ dmypy.json
 notebooks/waste_management/data/*
 notebooks/diego/waste_management/data/Waste_Collection___Diversion_Report__daily_.csv
 .Rproj.user
+notebooks/diego/waste_management/cache

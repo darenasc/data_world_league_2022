@@ -20,6 +20,8 @@ shapely = "*"
 mlxtend = "*"
 osmnx = "*"
 folium = "*"
+overpy = "*"
+networkx = "*"
 
 [requires]
 python_version = "3.8"
