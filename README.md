@@ -16,6 +16,7 @@ Finally, don’t forget to propose the application (product) for the model and s
 
 **Resources**
 * [Daily Waste Collection Report for Austin](https://data.austintexas.gov/Utilities-and-City-Services/Waste-Collection-Diversion-Report-daily-/mbnu-4wq9)
+* [Garbage Routes for Austin](https://data.austintexas.gov/Locations-and-Maps/Garbage-Routes/azhh-4hg8)
 * [Population per year (1840-2016)](https://www.austintexas.gov/sites/default/files/files/Planning/Demographics/population_history_pub.pdf)
 * [2020 Census Data on Austin](https://www.census.gov/quickfacts/fact/dashboard/austincitytexas/LND110210)
 * OpenWeather API
