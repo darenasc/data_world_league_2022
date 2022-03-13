@@ -1,0 +1,82 @@
+---
+title: "R Notebook"
+output: html_notebook
+---
+
+# Overview
+
+# Set up 
+
+```{r}
+library(tidyverse)
+```
+
+```{r}
+pollution <- read_csv(here::here('data', 'stadhouderskade_air_quality_2014_to_2022.csv'))
+CO <- read.csv(here::here('data', '2020_CO.csv'), sep = ';')
+```
+
+# Dataset exploration
+
+```{r}
+pollution %>% summary()
+```
+
+## Missing values analysis
+
+### Generic observations
+
+```{r}
+pollution %>% mutate_all(is.na) %>% summarise_all(sum)
+```
+The component name is missing for 11,1180 observations. In `value` missing value is represented by `-99`
+
+```{r}
+pollution %>% 
+  filter(value == -99) %>%
+  count(lubridate::year(timestamp_measured))
+```
+There are 662 missing values in 2021 - let's see how they are distributed.
+
+```{r}
+pollution %>% 
+  mutate(missing_vals = value == -99) %>%
+  ggplot(aes(x = timestamp_measured, y = value, group = component_id, colour = missing_vals)) +
+  geom_line() + 
+  facet_wrap(component_id ~ .)
+```
+
+* All components are missing data at the start of 2021 (jan-march). I think we should try to impute these missing values.
+* Some values seem negative, which is strange. 
+* The component name is missing for data in 2015-Q1 2016 and in a few observations after that.
+
+### Negative values
+
+Let's see how negative values are distributed: 
+```{r}
+pollution %>% 
+  filter(value <0 & value != -99) %>%
+  ggplot(aes(value)) +
+  geom_histogram(binwidth = 0.1)
+```
+
+There are 1,208 negative values in the dataset. Some are close to 0 but some aren't. They look like they could be estimation error?
+
+I'd say we approximate them to 0?
+
+### Missing component names
+
+```{r}
+pollution %>% filter(is.na(component_id) | component_id == "NO") %>% ggplot(aes(x=timestamp_measured, y=value)) + geom_line() + facet_grid(component_id ~.)
+```
+
+Could it be that the missing component name are actually duplicated row of the NO observations? 
+
+Maybe we can just delete these rows then.
+
+# Weather data
+https://developer.dataplatform.knmi.nl/get-started#obtain-an-api-key
+```{r}
+
+```
+
