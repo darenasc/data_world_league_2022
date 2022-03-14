@@ -1,0 +1,220 @@
+---
+title: "Austin Waste EDA"
+author: "Tom Constant"
+date: "14/03/2022"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+library(tidyverse)
+library(lubridate)
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Get Data
+
+Load function to access Austin API. Function queries the Austin data API 
+returning a `austin_api` object with tabulated data.
+
+```{r}
+source("austin-api.R")
+```
+
+## Get Waste Data
+
+Save data from API if no file exists.
+
+```{r}
+data_file <- here::here("data", "waste.rds")
+
+if(!file.exists(data_file)){
+  api_waste <- austin_api(query = list(`$limit` = "1000000"))
+  write_rds(api_waste, data_file)
+} 
+
+api_waste <- read_rds(data_file)
+df_waste <- api_waste$content
+
+```
+
+## Parse Dates
+
+```{r}
+df_waste <-
+  df_waste %>% 
+  mutate(across(contains(c("time", "date")), ymd_hms))
+```
+
+## Duplicates
+
+Check for duplicate rows.
+
+```{r}
+df_waste %>% summarise(n(), n_distinct())
+```
+
+## Missing Values
+
+Find missing values.
+
+```{r}
+colSums(is.na(df_waste))
+```
+
+```{r}
+df_waste %>% 
+  filter(is.na(load_weight))
+```
+
+Majority of missing load values are from sweeping category, where data seems
+less likely to be recorded.
+
+```{r}
+df_waste %>% 
+  group_by(load_type) %>% 
+  count(missing = is.na(load_weight)) %>% 
+  filter(missing) %>% 
+  mutate(load_type = fct_reorder(load_type, n)) %>% 
+  ggplot(aes(load_type, n)) + 
+  geom_col() + 
+  coord_flip() +
+  scale_y_log10() +
+  labs(
+    caption = paste("source : ", api_waste$citation$source, "accessed : ", api_waste$citation$retrieved)
+  )
+```
+
+```{r}
+df_waste %>% 
+  filter(load_type == "SWEEPING") %>% 
+  count(missing = is.na(load_weight))
+```
+
+Approx 80% sweeping waste load is not recorded.
+
+## Behaviour over time
+
+Checking data collection as a function of time.
+
+```{r}
+df_waste %>% 
+  mutate(year = year(load_time)) %>% 
+  group_by(year) %>% 
+  summarise(total_load_weight = sum(as.numeric(load_weight), na.rm=T)) %>% 
+  ggplot(aes(year, total_load_weight)) + 
+  geom_line() + 
+  geom_point() +
+  labs(
+    caption = paste("source : ", api_waste$citation$source, "accessed : ", api_waste$citation$retrieved)
+  )
+```
+
+* Data seems inconsistently reported prior to 2005. 
+* Erroneous data present for 2030. 
+* Is 2021 only partly recorded?
+
+
+## Waste against Austin GDP
+
+Although checking waste production against population is a good idea, measuring
+against GDP takes into account the districts productivity and industrial activity as 
+well as population.
+
+GDP data taken from https://fred.stlouisfed.org/series/NGMP12420
+
+```{r}
+df_gdp <- read_csv(here::here("data", "austin-gdp.csv"))
+
+df_waste_gdp <- 
+  df_waste %>% 
+  mutate(year = year(load_time)) %>% 
+  filter(year >= 2005, year <=2020) %>%
+  group_by(year) %>% 
+  summarise(total_load_weight = sum(as.numeric(load_weight), na.rm=T)) %>% 
+    left_join(df_gdp %>% mutate(year = year(DATE)))
+
+df_waste_gdp %>% 
+  ggplot(aes(NGMP12420, total_load_weight)) + 
+  geom_point() +
+  labs(
+    caption = paste("waste source : ", api_waste$citation$source, "accessed : ", api_waste$citation$retrieved, "\n", "gdp source : ", "https://fred.stlouisfed.org/series/NGMP12420")
+  ) + geom_smooth(method = "lm") +
+  labs(title = "GDP vs Total Waste", x = "Total GDP (millions $)")
+```
+
+
+```{r}
+l_reg <- lm(total_load_weight ~ NGMP12420, data = df_waste_gdp)
+l_reg_time <- lm(total_load_weight ~ year, data = df_waste_gdp)
+
+summary(l_reg)
+```
+
+A R-squared fit of `summary(l_reg)$r.squared`. Compared to a simple time dependence 
+of `summary(l_reg_time)$r.squared`. Taking into account GDP doesn't on its own
+improve this simple linear regression fit.
+
+```{r}
+df_waste_gdp %>% 
+  ggplot(aes(year, total_load_weight/(NGMP12420*1e6))) + geom_point() +
+  labs(title="Tonnes of Waste produced per $ GDP")
+```
+
+Normalizing waste to GDP shows a weak trend. Indicates improving (decreasing)
+waste production over time per GDP.
+
+## Garbage Routes
+
+Get route data from API. Not, geometry polygons are nested lists, so
+we don't rely on the tabular output from the API, but parse the nested JSON
+from the raw response.
+
+```{r}
+api_routes <- austin_api("resource/rtqb-u5jq.json")
+df_routes <- api_routes$content %>% select(-the_geom) %>% distinct()
+```
+
+```{r}
+df_waste %>%
+  filter(route_type == "GARBAGE COLLECTION") %>% 
+  select(report_date, route_number) %>% 
+  full_join(df_routes %>% select(garb_rt), by = c("route_number" = "garb_rt"), keep = TRUE) %>% 
+  full_join(df_routes %>% select(rt_old), by = c("route_number" = "rt_old"), keep = TRUE) %>% 
+  mutate(route = coalesce(garb_rt, rt_old)) %>% 
+  select(report_date, route_number, route) %>% 
+  group_by(year = year(report_date)) %>% 
+  summarise(
+    waste_missing = 100*sum(is.na(route_number))/n(), 
+    route_missing = 100*sum(is.na(route))/n()
+    ) %>% 
+  pivot_longer(-year) %>% 
+  ggplot(aes(year, value, fill = name)) + geom_col() +
+  labs(
+    x = "year",
+    y = "% of garbage routes unmatched",
+    caption = paste(
+      "waste data :", api_waste$citation$source, "retrieved :", api_waste$citation$retrieved,"\n",
+      "routes data :", api_routes$citation$source, "retrieved :", api_routes$citation$retrieved
+      )
+  )
+```
+
+Route data becomes more reliable over time, with ~20% of routes missing from 2010 onwards.
+
+## Plot Routes
+
+Quick hack on how to plot route areas in leaflet.
+
+```{r, eval = FALSE}
+library(leaflet)
+library(sp)
+
+routes_raw <- jsonlite::parse_json(content(api_routes$response, type = "text"))
+
+x <- map(routes_raw, function(x) x$the_geom)
+
+leaflet() %>% 
+  addTiles() %>% 
+  addGeoJSON(x)
+```
+
