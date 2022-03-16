@@ -11,11 +11,12 @@ waste %>%
 waste %>%
   filter(date < as.Date("2021-07-01")) %>%
   mutate(monthly = floor_date(date, "month")) %>%
-  group_by(monthly) %>% # Load.Type
+  group_by(monthly, Load.Type) %>% # Load.Type
   summarise(monthly_weight = sum(daily_weight)) %>%
   ggplot(aes(x = monthly, y = monthly_weight)) +
   geom_line() +
-  stat_smooth()
+  stat_smooth() +
+  facet_wrap(~Load.Type)
 
 # quick look for seasonality - nothing much here
 waste %>%
