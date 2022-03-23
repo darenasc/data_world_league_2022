@@ -24,8 +24,7 @@ Instructions:
   * Tom Wagstaff
 
 ## ✨ Introduction (250 words max)
-Provide a contextualization of the problem, together with an estimation of its size using real numbers and references.
-*Write here*
+Austin Texas has a goal for a 90% reduction in waste sent to landfill by 2040. Can we predict reductions in waste and create insights to help them hit the goal?
 
 ## 🔢 Data (250 words max)
 Explain what data you used (both provided by WDL and external) and improvements you suggest to those datasets. Explain how those improvements would lead to a better solution.
@@ -36,8 +35,14 @@ Tell us what methods and algorithms you used and the results you obtained.
 *Write here*
 
 ## 💡 Main Insights (300 words max)
-Explain what you discovered from addressing this problem, such as interesting facts or statistics.
-*Write here*
+When adjusting for population, waste has gone down by 27% since 2010. This downwards trend is also true when adjusting for GDP (as a proxy for economic activity). As the city is adopting a Repair, Reuse, Recycle strategy, it's insightful to look into how garbage and recycling evolved over time:
+
+*  Both garbage and recycling follow a similar downward trend, which peaked in 2008 for garbage and 2009 for recycling
+*  There is a clear break in trend in 2017 for garbage and 2016 for recycling, going down - which is encouraging for the city plans of going 0 waste by 2040
+*  Across the year, there are some peak months that would be good opportunities to communicate around waste reduction: both garbage and recycling go up in the autumn and drop in February. The end of year would be a good time to communicate about the importance of waste reduction. Potentially encouraging repaired, refurbished and second hand gifts for the end of year festivities. Garbage, unlike recycling, peaks again in April.
+*  Garbage is going down faster than recycling, possibly because there is a substitution effect as an effort is made to use more recyclable material. Communicating on repair is therefore critical to get to 0 waste.
+* Forecasting gives encouraging results with the estimates being about +-10% of the true value on our test set. It is worth using this data to monitor progress against the city objective. More historical data on other factors influencing waste production could help understand which policies could make a step change in the trends.
+
 
 ## 🛠️ Product
 ### Definition
@@ -67,9 +72,7 @@ The product has the goal of increasing awareness. Fighting climate change is a t
 
 Based on the predicted waste for garbage collection, by 2040 we will reach close to a 90% reduction from waste produced in 2010 by day and person. Recycling trend goes downwards but the slope is not that accentuated as for garbage collection.  
 
-### Problem
-Austin Texas has a goal for a 90% reduction in waste sent to landfill by 2040. Can we predict reductions in waste and create insights to help them hit the goal?
-
+---
 ### Method
 We all did some EDA on the time series at various levels of granularity. We then took different time series modelling approaches to try to explain the patterns we saw in the data.
 
