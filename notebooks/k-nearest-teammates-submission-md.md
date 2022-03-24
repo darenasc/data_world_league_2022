@@ -23,16 +23,31 @@ Include all the authors that have worked on this submission. It is not obligator
 * Person 3
 
 ## ✨ Introduction (250 words max)
-Provide a contextualization of the problem, together with an estimation of its size using real numbers and references.
-*Write here*
+<!-- Provide a contextualization of the problem, together with an estimation of its size using real numbers and references. -->
+
+Austin Texas has a goal for a 90% reduction in waste sent to landfill by 2040. Can we predict reductions in waste and create insights to help them hit the goal?
 
 ## 🔢 Data (250 words max)
-Explain what data you used (both provided by WDL and external) and improvements you suggest to those datasets. Explain how those improvements would lead to a better solution.
-*Write here*
+<!-- Explain what data you used (both provided by WDL and external) and improvements you suggest to those datasets. Explain how those improvements would lead to a better solution. -->
+
+We used the [Austin Resource Recovery daily report](https://data.austintexas.gov/Utilities-and-City-Services/Waste-Collection-Diversion-Report-daily-/mbnu-4wq9). 
+
+We explored the dataset identifying the target variable and its distribution by load type. We ranked the load types that generate most of the 
+
+We also used and explore external datasets such as the census that allowed us to estimate a target of *waste per person*. We explore the use of the GDP in and we explore the use of data from Open Map Street to create features of number of builinds, parks, shopping centers, etc. in the routes.
 
 ## 🧮 Methods and Techniques (250 words max)
-Tell us what methods and algorithms you used and the results you obtained.
-*Write here*
+<!-- Tell us what methods and algorithms you used and the results you obtained. -->
+
+We all did some EDA on the time series at various levels of granularity. We then took different time series modelling approaches to try to explain the patterns we saw in the data.
+
+Using Prophet we could create a reasonable forecast of both garbage and recycling waste that had a plausible trend, seasonality and day of week component.
+The models suggest that garbage collections are peaking and trending down in line with the 2040 plan - although there might be some influence from the pandemic period.
+Conversely, recycling is rising on a steady trend.
+
+We interpret this as positive for Austin's plans and a good proof of concept for decoupling waste from continuing economic and population growth.
+
+Tailored forecasts of this kind - showing you how much waste your community was expected to produce, and how this would be influenced by different policies, could be used for awareness-raising and sharing Austin's model of waste management to other cities.
 
 ## 💡 Main Insights (300 words max)
 Explain what you discovered from addressing this problem, such as interesting facts or statistics.
@@ -75,22 +90,6 @@ Example:
 * *Based on model predictions*: Our model estimates a decrease of 6 minutes of the average dispatch time and a decrease of the average distance of 200 meters
 * *Based on proxy products*: Similar studies in other cities show that the dispatch time can be decreased by as much as 13 minutes, depending on the traffic intensity of that city.
 
-
-
-### Problem
-Austin Texas has a goal for a 90% reduction in waste sent to landfill by 2040. Can we predict reductions in waste and create insights to help them hit the goal?
-
-### Method
-We all did some EDA on the time series at various levels of granularity. We then took different time series modelling approaches to try to explain the patterns we saw in the data.
-
-### Outline solution
-Using Prophet we could create a reasonable forecast of both garbage and recycling waste that had a plausible trend, seasonality and day of week component.
-The models suggest that garbage collections are peaking and trending down in line with the 2040 plan - although there might be some influence from the pandemic period.
-Conversely, recycling is rising on a steady trend.
-
-We interpret this as positive for Austin's plans and a good proof of concept for decoupling waste from continuing economic and population growth.
-
-Tailored forecasts of this kind - showing you how much waste your community was expected to produce, and how this would be influenced by different policies, could be used for awareness-raising and sharing Austin's model of waste management to other cities.
 
 ### Extensions & reflections
 We did try some ARIMA modelling which produced plausible forecasts but was not very insightful when it came to trends and drivers.
