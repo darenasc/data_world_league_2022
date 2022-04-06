@@ -131,6 +131,7 @@ dmypy.json
 notebooks/waste_management/data/*
 notebooks/diego/waste_management/data/Waste_Collection___Diversion_Report__daily_.csv
 notebooks/diego/waste_management/data/clean_waste_data.csv
+notebooks/diego/waste_management/data/Properties_Affected_by_the_Recycling_Diversion_Requirements_of_the_Universal_Recycling_Ordinance__URO_.csv
 .Rproj.user
 notebooks/diego/waste_management/cache
 
