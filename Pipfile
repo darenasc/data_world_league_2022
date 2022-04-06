@@ -25,6 +25,8 @@ networkx = "*"
 shap = "*"
 streamlit = "*"
 tqdm = "*"
+pipfile = "*"
+pandas-profiling = "*"
 
 [requires]
 python_version = "3.8"
