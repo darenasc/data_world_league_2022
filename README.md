@@ -1,5 +1,38 @@
 # Data World League 2022
 
+# [Stage 2 - Cascais](https://drive.google.com/file/d/1AHOGNu2cQjnZI5htiPkKlhPDSpC0_XI0/view)
+
+## Goal
+The goal is to model, from the point of view of trends, which routes of the transport road network suffer the most cuts/disturbance due to interventions on public roads. We intend to evaluate the effort needed to adapt our services to match the network's needs in the presence of disruptions due to physical obstacles preventing circulation along usual routes. Additionally, we would like to evaluate and quantify levels of the perception of "inconvenience" by network users caused by different disruptions.
+
+## Outcome
+The outcome should focus on two main aspects:
+- A data analysis of the most interrupted routes, trends in interruptions and
+locations with the highest amount of interruptions.
+- A route optimization model/approach which minimizes the disturbances for
+passengers (e.g. travel time and location of new stops). The model should be tested
+with several interruptions.
+
+Finally, don’t forget to propose the application (product) for the model and study its impact.
+
+## Resources
+Available Resources
+All the data resources can be found here: https://dadosabertos.cascais.pt/. The link to specifica datasets can be found below.
+As a reminder, you can also use any data that is open, free and legally available.
+The following list of resources is available for you to use:
+- [GTFS Public Transport Network of Cascais](https://dadosabertos.cascais.pt/dataset/gtfs-mobicascais)
+- [Bus Routes](https://dadosabertos.cascais.pt/dataset/carreira-de-autocarro/)
+- [Road Network](https://dadosabertos.cascais.pt/dataset/eixo-de-via/)
+- [Interventions in public roads](https://dadosabertos.cascais.pt/dataset/obras-de-intervencao-na-via-publica)
+- [Google OR Tools Vehicle Routing](https://developers.google.com/optimization/routing)
+- [Google Direction API](https://developers.google.com/optimization/routing/google_direction)
+
+The description of the datasets can be found in the [dictionary](https://docs.google.com/spreadsheets/d/10IUS4sdJPEgGHunAlUyG50ww2Kntt69MFSnePL5h-BU/edit#gid=850019181).
+
+## Submissions
+
+Deadline: Wed, 22 April 23h59 AoE (Anywhere on Earth)
+
 # [Stage 1 - Environment](https://challenges.worlddataleague.com/event/world-data-league-2022/stage-1#challenges)
 
 ## [1. Predict Waste Production for its Reduction](https://drive.google.com/file/d/1KbBl0-8da1YezzS7x6w9DVN61eliLPY9/view)
