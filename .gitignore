@@ -134,6 +134,7 @@ notebooks/diego/waste_management/data/clean_waste_data.csv
 notebooks/diego/waste_management/data/Properties_Affected_by_the_Recycling_Diversion_Requirements_of_the_Universal_Recycling_Ordinance__URO_.csv
 .Rproj.user
 notebooks/diego/waste_management/cache
+notebooks/diego/public_transport/data
 
 # R Objects
 data/waste.rds
