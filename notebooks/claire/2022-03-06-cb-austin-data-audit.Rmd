@@ -218,7 +218,7 @@ detect_outliers <- function(load_type){
   #predict outliers within dataset
   df$pred <- iforest$predict(df)
   
-  threshold <- df$pred$anomaly_score %>% quantile(0.97)
+  threshold <- df$pred$anomaly_score %>% quantile(0.95)
   
   df$outlier <- as.factor(ifelse(df$pred$anomaly_score >= threshold, "outlier", "normal"))
   
@@ -251,16 +251,16 @@ grouped_waste_no_outlier <- selected_waste %>%
   create_daily_grouping() 
 
 grouped_waste_no_outlier %>%
-  filter(lubridate::year(week) > 2004,
-         week <= '2021-06-01') %>%
-  ggplot(aes(week, av_weight)) +
+  filter(lubridate::year(day) > 2004,
+         day <= '2021-06-01') %>%
+  ggplot(aes(day, av_weight)) +
   geom_line() +
   theme(axis.text.x = element_text(angle = 45)) +
   facet_wrap(Load.Type ~.)+
   labs(title = 'Time series of different types of waste',
        subtitle = 'Outliers and missing data cleaned',
        x = NULL,
-       y = 'Average weekly waste in pounds')
+       y = 'Average daily waste in pounds')
 ```
 
 2 dates are in the future (removed) and sometimes the report date is years after the load.time - that seems strange? Maybe we just ignore `report_date`
@@ -278,20 +278,32 @@ time_discrep %>%
 # Create features
 
 ```{r}
+gdp <- read_csv(here::here('data', 'austin-gdp.csv')) %>%
+  mutate(date = lubridate::dmy(DATE)) %>%
+  rename(gdp = NGMP12420) %>%
+  mutate(year = lubridate::year(date))
+
 clean_df <- selected_waste_w_outliers %>% 
   mutate(date = lubridate::as_date(lubridate::floor_date(Load.Time, unit = 'day')),
          year = lubridate::year(Load.Time),
          month = lubridate::month(Load.Time),
          wday = lubridate::wday(Load.Time, abbr = T, label = T)) %>%
   left_join(pop %>% select(year, total_pop, annualised_growth), by = 'year') %>%
-  group_by(date, year, month, wday, Load.Type, Route.Type, Dropoff.Site, Route.Number, outlier, total_pop, annualised_growth) %>%
+  left_join(gdp %>% select(year, gdp), by = 'year') %>%
+  group_by(date, year, month, wday, Load.Type, Route.Type, Dropoff.Site, Route.Number, outlier, total_pop, annualised_growth, gdp) %>%
   summarise(nb_loads = n_distinct(Load.ID),
             daily_weight = sum(Load.Weight)) %>%
   ungroup()
-clean_df
 ```
+
 ```{r}
 write_csv(clean_df, here::here('data', 'clean_waste_data.csv'))
+```
+
+```{r}
+clean_df %>%
+  group_by(year) %>%
+  summarise(waste_pp = sum(daily_weight)/first(total_pop)) %>% ggplot(aes(year, waste_pp)) + geom_line()
 ```
 
 
